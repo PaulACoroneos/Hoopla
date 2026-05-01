@@ -1,0 +1,2 @@
+# Hoopla
+Command line RAG
