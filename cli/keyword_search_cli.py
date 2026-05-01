@@ -19,7 +19,7 @@ def main() -> None:
           for movie in data['movies']:
             if count > 5:
               break
-            if args.query in movie["title"]:
+            if args.query.lower() in movie["title"].lower():
               print(f"{count}. {movie['title']}")
               count = count + 1
       case _:
