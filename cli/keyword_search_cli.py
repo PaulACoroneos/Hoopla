@@ -2,8 +2,19 @@ import argparse
 import json
 
 def strip_punction(string_with_punctuation):
-  replace_function = str.maketrans({",": "", ".": "", "!": "O",":":"", "'":"","-":""})
+  replace_function = str.maketrans({",": "", ".": "", "!": "",":":"", "'":"","-":""})
   return string_with_punctuation.translate(replace_function)
+
+def generate_matched_movie_titles_list(query, movies_data):
+  matched_titles = []
+  query_no_punc_lower = strip_punction(query)
+  for movie in movies_data['movies']:
+    title_no_punc_lower = strip_punction(movie["title"].lower())
+    for query_word in query_no_punc_lower.split():
+      for title_word in title_no_punc_lower.split():
+        if query_word in title_word:
+          matched_titles.append(movie['title'])
+  return matched_titles
 
 def main() -> None:
   parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -17,17 +28,14 @@ def main() -> None:
   match args.command:
       case "search":
         print(f"Searching for: {args.query}")
-        count = 1
         with open('data/movies.json', 'r') as f:
           data = json.load(f)
-          for movie in data['movies']:
-            if count > 5:
-              break
-            query_no_punc = strip_punction(args.query.lower())
-            title_no_punc = strip_punction(movie["title"].lower())
-            if query_no_punc in title_no_punc:
-              print(f"{count}. {movie['title']}")
-              count = count + 1
+          matched_titles = generate_matched_movie_titles_list(args.query.lower(),data)
+
+          count = 1
+          for movie_title in list(dict.fromkeys(matched_titles))[:5]:
+            print(f"{count}. {movie_title}")
+            count = count + 1
       case _:
           parser.print_help()
 
