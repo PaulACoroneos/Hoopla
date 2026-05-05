@@ -1,37 +1,25 @@
 import argparse
 import json
 
+from utilities.text_utils import (
+    generate_stop_words_list,
+    sanitize_movie_titles,
+    sanitize_query,
+)
 
-def strip_punction(string_with_punctuation):
-    replace_function = str.maketrans(
-        {",": "", ".": "", "!": "", ":": "", "'": "", "-": ""}
-    )
-    return string_with_punctuation.translate(replace_function)
 
-
-def generate_matched_movie_titles_list(query, movies_data):
+def generate_matched_movie_titles_list(query, movies_data, stop_words):
     matched_titles = []
-    query_no_punc_lower = strip_punction(query)
-    for movie in movies_data["movies"]:
-        title_no_punc_lower = strip_punction(movie["title"].lower())
-        for query_word in query_no_punc_lower.split():
-            for title_word in title_no_punc_lower.split():
+    clean_query = sanitize_query(query, stop_words)
+    santized_titles_with_originals = sanitize_movie_titles(movies_data, stop_words)
+
+    for original_title, clean_title in santized_titles_with_originals:
+        for query_word in clean_query.split():
+            for title_word in clean_title.split():
                 if query_word in title_word:
-                    matched_titles.append(movie["title"])
+                    matched_titles.append(original_title)
+
     return matched_titles
-
-
-def generate_stop_words_list():
-    with open("data/stopwords.txt", "r") as f:
-        data = f.read()
-        return data.splitlines()
-
-
-def remove_stopwords_from_phrase(phrase, stop_words):
-    sanitized_text = " ".join(
-        word for word in phrase.split() if word not in stop_words
-    )
-    return sanitized_text
 
 
 def main() -> None:
@@ -51,7 +39,7 @@ def main() -> None:
             with open("data/movies.json", "r") as f:
                 data = json.load(f)
                 matched_titles = generate_matched_movie_titles_list(
-                    args.query.lower(), data
+                    args.query.lower(), data, stop_words
                 )
 
                 count = 1
