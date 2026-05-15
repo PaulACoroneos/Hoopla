@@ -8,6 +8,7 @@ class InvertedIndex:
     def __init__(self):
         self.index = {}
         self.docmap = {}
+        self.term_frequencies = {}
 
     def __add_document(self, doc_id, text):
         # Tokenize the input text, then add each token to the index with the document ID.
@@ -17,6 +18,12 @@ class InvertedIndex:
                 self.index[token] = {doc_id}
             else:
                 self.index[token].add(doc_id)
+            if doc_id not in self.term_frequencies:
+                self.term_frequencies[doc_id] = {}
+            if token not in self.term_frequencies[doc_id]:
+                self.term_frequencies[doc_id][token] = 1
+            else:
+                self.term_frequencies[doc_id][token] += 1
 
     def get_documents(self, term):
         # Return the set of document IDs for a given token, sorted in ascending order.
@@ -37,6 +44,8 @@ class InvertedIndex:
             pickle.dump(self.index, handle)
         with open("cache/docmap.pkl", "wb") as handle:
             pickle.dump(self.docmap, handle)
+        with open("cache/term_frequencies.pkl", "wb") as handle:
+            pickle.dump(self.term_frequencies, handle)
 
     def load(self):
         try:
@@ -49,6 +58,17 @@ class InvertedIndex:
                 self.docmap = pickle.load(handle)
         except Exception as e:
             raise Exception(f"Failed to load docmap.pkl {e}")
+        try:
+            with open("cache/term_frequencies.pkl", "rb") as handle:
+                self.term_frequencies = pickle.load(handle)
+        except Exception as e:
+            raise Exception(f"Failed to load term_frequencies.pkl {e}")
 
     def get_document(self, doc_id):
         return self.docmap[doc_id]
+
+    def get_tf(self, doc_id, term):
+        tokens = tokenize_text(term, generate_stop_words_list())
+        if len(tokens) == 1:
+            return self.term_frequencies.get(doc_id, {}).get(tokens[0], 0)
+        raise Exception("Term must be a single token that is not a stopword")
