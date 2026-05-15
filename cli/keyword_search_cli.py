@@ -1,16 +1,17 @@
 import argparse
-import json
 
+from utilities.inverted_index import InvertedIndex
 from utilities.text_utils import (
     generate_stop_words_list,
+    load_movies,
     sanitize_movie_titles,
-    sanitize_query,
+    tokenize_text,
 )
 
 
 def generate_matched_movie_titles_list(query, movies_data, stop_words):
     matched_titles = []
-    clean_query = sanitize_query(query, stop_words)
+    clean_query = tokenize_text(query, stop_words)
     santized_titles_with_originals = sanitize_movie_titles(movies_data, stop_words)
 
     for original_title, clean_title in santized_titles_with_originals:
@@ -28,24 +29,41 @@ def main() -> None:
 
     search_parser = subparsers.add_parser("search", help="Search movies using BM25")
     search_parser.add_argument("query", type=str, help="Search query")
+    build_parser = subparsers.add_parser("build", help="Build the inverted index")
 
     args = parser.parse_args()
 
     stop_words = generate_stop_words_list()
 
+    inverted_index = InvertedIndex()
+
     match args.command:
         case "search":
-            print(f"Searching for: {args.query}")
-            with open("data/movies.json", "r") as f:
-                data = json.load(f)
-                matched_titles = generate_matched_movie_titles_list(
-                    args.query.lower(), data, stop_words
-                )
+            try:
+                inverted_index.load()
+            except Exception as e:
+                print(f"Failed to load index: {e}")
+                return
+            tokenized_query = tokenize_text(args.query, stop_words)
 
-                count = 1
-                for movie_title in list(dict.fromkeys(matched_titles))[:5]:
-                    print(f"{count}. {movie_title}")
-                    count = count + 1
+            count = 0
+            for token in tokenized_query:
+                matched_documents = inverted_index.get_documents(token)
+                if matched_documents:
+                    for matched_id in matched_documents:
+                        if count > 4:
+                            break
+                        count += 1
+                        matched_doc = inverted_index.get_document(matched_id)
+                        print(
+                            matched_doc["title"],
+                            matched_doc["id"],
+                        )
+
+        case "build":
+            inverted_index.build()
+            inverted_index.save()
+
         case _:
             parser.print_help()
 

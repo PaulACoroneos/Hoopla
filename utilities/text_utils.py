@@ -1,10 +1,23 @@
+import json
+
 from nltk.stem import PorterStemmer
 
 
 def strip_punctuation(string_with_punctuation):
     replace_function = str.maketrans(
-        {",": "", ".": "", "!": "", ":": "", "'": "", "-": ""}
+        {
+            ",": "",
+            ".": "",
+            "!": "",
+            ":": "",
+            "'": "",
+            "-": "",
+            "\u201c": "",
+            "\u201d": "",
+            '"': "",
+        }
     )
+
     return string_with_punctuation.translate(replace_function)
 
 
@@ -12,6 +25,11 @@ def generate_stop_words_list():
     with open("data/stopwords.txt", "r") as f:
         data = f.read()
         return data.splitlines()
+
+
+def load_movies():
+    with open("data/movies.json", "r") as f:
+        return json.load(f)["movies"]
 
 
 def remove_stopwords_from_phrase(phrase, stop_words):
@@ -23,15 +41,13 @@ def stem_phrase(phrase):
     return " ".join(stemmer.stem(word) for word in phrase.split())
 
 
-def sanitize_query(query, stop_words):
+def tokenize_text(query, stop_words):
     lowered_query = query.lower()
     stipped_punction_and_lowered = strip_punctuation(lowered_query)
     stopwords_removed = remove_stopwords_from_phrase(
         stipped_punction_and_lowered, stop_words
     )
-    stemmed_query = stem_phrase(stopwords_removed)
-
-    return stemmed_query
+    return stem_phrase(stopwords_removed).split()
 
 
 def sanitize_movie_titles(movies_data, stop_words):
