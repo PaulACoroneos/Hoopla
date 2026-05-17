@@ -1,22 +1,11 @@
 import json
+import string
 
 from nltk.stem import PorterStemmer
 
 
 def strip_punctuation(string_with_punctuation):
-    replace_function = str.maketrans(
-        {
-            ",": "",
-            ".": "",
-            "!": "",
-            ":": "",
-            "'": "",
-            "-": "",
-            "\u201c": "",
-            "\u201d": "",
-            '"': "",
-        }
-    )
+    replace_function = str.maketrans("", "", string.punctuation)
 
     return string_with_punctuation.translate(replace_function)
 

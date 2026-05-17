@@ -1,9 +1,9 @@
 import argparse
+import math
 
 from utilities.inverted_index import InvertedIndex
 from utilities.text_utils import (
     generate_stop_words_list,
-    load_movies,
     sanitize_movie_titles,
     tokenize_text,
 )
@@ -23,18 +23,46 @@ def generate_matched_movie_titles_list(query, movies_data, stop_words):
     return matched_titles
 
 
+def bm25_idf_command(term) -> float | None:
+    inverted_index = InvertedIndex()
+    try:
+        inverted_index.load()
+    except Exception as e:
+        print(f"Failed to load index: {e}")
+        return
+    return inverted_index.get_bm25_idf(term)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     search_parser = subparsers.add_parser("search", help="Search movies using BM25")
     search_parser.add_argument("query", type=str, help="Search query")
-    build_parser = subparsers.add_parser("build", help="Build the inverted index")
+    subparsers.add_parser("build", help="Build the inverted index")
     tf_parser = subparsers.add_parser(
         "tf", help="Returns term frequency for a given document and term"
     )
     tf_parser.add_argument("doc_id", type=int, help="Document ID")
     tf_parser.add_argument("term", type=str, help="Term")
+    idf_parser = subparsers.add_parser(
+        "idf", help="Returns inverse document frequency for a given term"
+    )
+    idf_parser.add_argument("term", type=str, help="Term")
+
+    tfidf_parser = subparsers.add_parser(
+        "tfidf",
+        help="Returns term-document inverse document frequency for a given term",
+    )
+    tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
+    tfidf_parser.add_argument("term", type=str, help="Term")
+
+    bm25_idf_parser = subparsers.add_parser(
+        "bm25idf", help="Get BM25 IDF score for a given term"
+    )
+    bm25_idf_parser.add_argument(
+        "term", type=str, help="Term to get BM25 IDF score for"
+    )
 
     args = parser.parse_args()
 
@@ -78,6 +106,41 @@ def main() -> None:
             tf = inverted_index.get_tf(args.doc_id, args.term)
             print(tf if tf else "0")
 
+        case "idf":
+            try:
+                inverted_index.load()
+            except Exception as e:
+                print(f"Failed to load index: {e}")
+                return
+            total_doc_count = len(inverted_index.docmap)
+            term_match_doc_count = len(inverted_index.get_documents(args.term) or [])
+            idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
+            print(f"Inverse document frequency of '{args.term}': {idf:.2f}")
+
+        case "tfidf":
+            try:
+                inverted_index.load()
+            except Exception as e:
+                print(f"Failed to load index: {e}")
+                return
+
+            tf = inverted_index.get_tf(args.doc_id, args.term)
+            total_doc_count = len(inverted_index.docmap)
+            term_match_doc_count = len(inverted_index.get_documents(args.term) or [])
+            idf = math.log((total_doc_count + 1) / (term_match_doc_count + 1))
+
+            tf_idf = tf * idf
+
+            print(
+                f"TF-IDF score of '{args.term}' in document '{args.doc_id}': {tf_idf:.2f}"
+            )
+
+        case "bm25idf":
+            idf = bm25_idf_command(args.term)
+            if idf is not None:
+                print(f"BM25 IDF score of '{args.term}': {idf:.2f}")
+            else:
+                raise Exception(f"No BM25 IDF score available for term '{args.term}'")
         case _:
             parser.print_help()
 

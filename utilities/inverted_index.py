@@ -1,3 +1,4 @@
+import math
 import os
 import pickle
 
@@ -72,3 +73,12 @@ class InvertedIndex:
         if len(tokens) == 1:
             return self.term_frequencies.get(doc_id, {}).get(tokens[0], 0)
         raise Exception("Term must be a single token that is not a stopword")
+
+    def get_bm25_idf(self, term: str) -> float:
+        tokenized_term = tokenize_text(term, generate_stop_words_list())
+        if len(tokenized_term) != 1:
+            raise Exception("Term must be a single token that is not a stopword")
+
+        N = len(self.docmap)
+        df = len(self.get_documents(term) or [])
+        return math.log((N - df + 0.5) / (df + 0.5) + 1)
