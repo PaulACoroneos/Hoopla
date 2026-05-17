@@ -4,6 +4,8 @@ import pickle
 
 from utilities.text_utils import generate_stop_words_list, load_movies, tokenize_text
 
+BM25_K1 = 1.5
+
 
 class InvertedIndex:
     def __init__(self):
@@ -82,3 +84,8 @@ class InvertedIndex:
         N = len(self.docmap)
         df = len(self.get_documents(term) or [])
         return math.log((N - df + 0.5) / (df + 0.5) + 1)
+
+    def get_bm25_tf(self, doc_id, term, k1=BM25_K1):
+        tf = self.get_tf(doc_id, term)
+        bm25_tf = (tf * (k1 + 1)) / (tf + k1)
+        return bm25_tf
