@@ -86,6 +86,14 @@ def main() -> None:
         "b", type=float, nargs="?", default=BM25_B, help="Tunable BM25 b parameter"
     )
 
+    bm25search_parser = subparsers.add_parser(
+        "bm25search", help="Search movies using full BM25 scoring"
+    )
+    bm25search_parser.add_argument("query", type=str, help="Search query")
+    bm25search_parser.add_argument(
+        "limit", type=int, nargs="?", default=5, help="Number of results to return"
+    )
+
     args = parser.parse_args()
 
     stop_words = generate_stop_words_list()
@@ -173,6 +181,18 @@ def main() -> None:
             else:
                 raise Exception(
                     f"No BM25 TF score available for term '{args.term}' in document '{args.doc_id}'"
+                )
+        case "bm25search":
+            try:
+                inverted_index.load()
+            except Exception as e:
+                print(f"Failed to load index: {e}")
+                return
+
+            results = inverted_index.bm25_search(args.query, args.limit)
+            for doc_id, score in results:
+                print(
+                    f"({doc_id}): {inverted_index.docmap[doc_id].get('title')} - Score {score:.2f}"
                 )
         case _:
             parser.print_help()
