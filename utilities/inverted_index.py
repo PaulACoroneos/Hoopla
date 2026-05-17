@@ -5,6 +5,8 @@ import pickle
 from utilities.text_utils import generate_stop_words_list, load_movies, tokenize_text
 
 BM25_K1 = 1.5
+BM25_B = 0.75
+CACHE_DIR = "cache"
 
 
 class InvertedIndex:
@@ -12,10 +14,13 @@ class InvertedIndex:
         self.index = {}
         self.docmap = {}
         self.term_frequencies = {}
+        self.doc_lengths = {}
 
     def __add_document(self, doc_id, text):
         # Tokenize the input text, then add each token to the index with the document ID.
         tokens = tokenize_text(text, generate_stop_words_list())
+        self.doc_lengths[doc_id] = len(tokens)
+
         for token in tokens:
             if token not in self.index:
                 self.index[token] = {doc_id}
@@ -42,30 +47,37 @@ class InvertedIndex:
             self.docmap[movie["id"]] = movie
 
     def save(self):
-        os.makedirs("cache", exist_ok=True)
-        with open("cache/index.pkl", "wb") as handle:
+        os.makedirs(f"{CACHE_DIR}", exist_ok=True)
+        with open(f"{CACHE_DIR}/index.pkl", "wb") as handle:
             pickle.dump(self.index, handle)
-        with open("cache/docmap.pkl", "wb") as handle:
+        with open(f"{CACHE_DIR}/docmap.pkl", "wb") as handle:
             pickle.dump(self.docmap, handle)
-        with open("cache/term_frequencies.pkl", "wb") as handle:
+        with open(f"{CACHE_DIR}/term_frequencies.pkl", "wb") as handle:
             pickle.dump(self.term_frequencies, handle)
+        with open(f"{CACHE_DIR}/doc_lengths.pkl", "wb") as handle:
+            pickle.dump(self.doc_lengths, handle)
 
     def load(self):
         try:
-            with open("cache/index.pkl", "rb") as handle:
+            with open(f"{CACHE_DIR}/index.pkl", "rb") as handle:
                 self.index = pickle.load(handle)
         except Exception as e:
             raise Exception(f"Failed to load index.pkl {e}")
         try:
-            with open("cache/docmap.pkl", "rb") as handle:
+            with open(f"{CACHE_DIR}/docmap.pkl", "rb") as handle:
                 self.docmap = pickle.load(handle)
         except Exception as e:
             raise Exception(f"Failed to load docmap.pkl {e}")
         try:
-            with open("cache/term_frequencies.pkl", "rb") as handle:
+            with open(f"{CACHE_DIR}/term_frequencies.pkl", "rb") as handle:
                 self.term_frequencies = pickle.load(handle)
         except Exception as e:
             raise Exception(f"Failed to load term_frequencies.pkl {e}")
+        try:
+            with open(f"{CACHE_DIR}/doc_lengths.pkl", "rb") as handle:
+                self.doc_lengths = pickle.load(handle)
+        except Exception as e:
+            raise Exception(f"Failed to load doc_lengths.pkl {e}")
 
     def get_document(self, doc_id):
         return self.docmap[doc_id]
@@ -85,7 +97,15 @@ class InvertedIndex:
         df = len(self.get_documents(term) or [])
         return math.log((N - df + 0.5) / (df + 0.5) + 1)
 
-    def get_bm25_tf(self, doc_id, term, k1=BM25_K1):
+    def get_bm25_tf(self, doc_id, term, k1=BM25_K1, b=BM25_B):
         tf = self.get_tf(doc_id, term)
-        bm25_tf = (tf * (k1 + 1)) / (tf + k1)
+        length_norm = (
+            1 - b + b * (self.doc_lengths[doc_id] / self.__get_avg_doc_length())
+        )
+        bm25_tf = (tf * (k1 + 1)) / (tf + k1 * length_norm)
         return bm25_tf
+
+    def __get_avg_doc_length(self) -> float:
+        if self.doc_lengths:
+            return sum(self.doc_lengths.values()) / len(self.doc_lengths)
+        return 0.0
