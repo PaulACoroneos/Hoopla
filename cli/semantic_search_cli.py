@@ -25,6 +25,11 @@ def main():
     search_parser.add_argument(
         "--limit", type=int, nargs="?", default=5, help="Number of results to return"
     )
+    chunk_parser = subparsers.add_parser("chunk", help="Chunk text")
+    chunk_parser.add_argument("text", help="text to chunk")
+    chunk_parser.add_argument(
+        "--chunk-size", type=int, nargs="?", default=200, help="Size of chunk"
+    )
 
     args = parser.parse_args()
 
@@ -48,6 +53,16 @@ def main():
                 print(f"{index + 1}. {result['title']} (score: {result['score']})")
                 print(result["description"])
 
+        case "chunk":
+            split_text = args.text.split()
+            chunked_text = [
+                " ".join(split_text[i : i + args.chunk_size])
+                for i in range(0, len(split_text), args.chunk_size)
+            ]
+
+            print(f"Chunking {len(args.text)} characters")
+            for idx, text in enumerate(chunked_text, 1):
+                print(f"{idx}. {text}")
         case _:
             parser.print_help()
 
