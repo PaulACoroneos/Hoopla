@@ -2,11 +2,11 @@ import math
 import os
 import pickle
 
+from utilities.constants import CACHE_DIR
 from utilities.text_utils import generate_stop_words_list, load_movies, tokenize_text
 
 BM25_K1 = 1.5
 BM25_B = 0.75
-CACHE_DIR = "cache"
 
 
 class InvertedIndex:

@@ -1,4 +1,5 @@
 import json
+import re
 import string
 
 from nltk.stem import PorterStemmer
@@ -52,3 +53,23 @@ def sanitize_movie_titles(movies_data, stop_words):
         )
 
     return sanitized_movie_titles_with_original_titles
+
+
+def chunk_words(text, chunk_size, overlap):
+    words = text.split()
+    chunks = []
+    for i in range(0, len(words), chunk_size - overlap):
+        chunks.append(" ".join(words[i : i + chunk_size]))
+    return chunks
+
+
+def chunk_sentences(text, max_chunk_size, overlap):
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    chunks = []
+    for i in range(0, len(sentences), max_chunk_size - overlap):
+        sub_chunk = sentences[i : i + max_chunk_size]
+        # does the next sub chunk of sentences actually contain anything that isnt just previous overlap?
+        if len(sub_chunk) > overlap:
+            chunks.append(" ".join(sub_chunk))
+
+    return chunks

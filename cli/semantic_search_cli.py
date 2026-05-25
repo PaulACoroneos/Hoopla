@@ -2,13 +2,14 @@
 
 import argparse
 
+from cli.lib.chunked_semantic_search import ChunkedSemanticSearch
 from cli.lib.semantic_search import (
     SemanticSearch,
     embed_query_text,
     embed_text,
     verify_embeddings,
 )
-from utilities.text_utils import load_movies
+from utilities.text_utils import chunk_sentences, chunk_words, load_movies
 
 
 def main():
@@ -30,6 +31,22 @@ def main():
     chunk_parser.add_argument(
         "--chunk-size", type=int, nargs="?", default=200, help="Size of chunk"
     )
+    chunk_parser.add_argument(
+        "--overlap", type=int, nargs="?", default=0, help="Amount of overlap"
+    )
+
+    semantic_chunk_parser = subparsers.add_parser(
+        "semantic_chunk", help="Semantic chunk text"
+    )
+    semantic_chunk_parser.add_argument("text", help="text to semantic chunk")
+    semantic_chunk_parser.add_argument(
+        "--max-chunk-size", type=int, nargs="?", default=4, help="Max size of chunk"
+    )
+    semantic_chunk_parser.add_argument(
+        "--overlap", type=int, nargs="?", default=0, help="Amount of overlap"
+    )
+
+    subparsers.add_parser("embed_chunks", help="Embed chunks")
 
     args = parser.parse_args()
 
@@ -45,7 +62,6 @@ def main():
         case "embed_query":
             embed_query_text(args.query)
         case "search":
-            semantic_search = SemanticSearch()
             movies = load_movies()
             semantic_search.load_or_create_embeddings(movies)
             results = semantic_search.search(args.query, args.limit)
@@ -54,15 +70,24 @@ def main():
                 print(result["description"])
 
         case "chunk":
-            split_text = args.text.split()
-            chunked_text = [
-                " ".join(split_text[i : i + args.chunk_size])
-                for i in range(0, len(split_text), args.chunk_size)
-            ]
-
+            chunked_text = chunk_words(args.text, args.chunk_size, args.overlap)
             print(f"Chunking {len(args.text)} characters")
             for idx, text in enumerate(chunked_text, 1):
                 print(f"{idx}. {text}")
+
+        case "semantic_chunk":
+            chunks = chunk_sentences(args.text, args.max_chunk_size, args.overlap)
+            print(f"Semantically chunking {len(args.text)} characters")
+            for idx, text in enumerate(chunks, 1):
+                print(f"{idx}. {text}")
+
+        case "embed_chunks":
+            movies = load_movies()
+            chunked_semantic_search = ChunkedSemanticSearch()
+            embeddings = chunked_semantic_search.load_or_create_chunk_embeddings(movies)
+
+            print(f"Generated {len(embeddings)} chunked embeddings")
+
         case _:
             parser.print_help()
 
