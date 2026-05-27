@@ -15,6 +15,7 @@ class InvertedIndex:
         self.docmap = {}
         self.term_frequencies = {}
         self.doc_lengths = {}
+        self.index_path = f"{CACHE_DIR}/inverted_index.pkl"
 
     def __add_document(self, doc_id, text):
         # Tokenize the input text, then add each token to the index with the document ID.
@@ -48,7 +49,7 @@ class InvertedIndex:
 
     def save(self):
         os.makedirs(f"{CACHE_DIR}", exist_ok=True)
-        with open(f"{CACHE_DIR}/index.pkl", "wb") as handle:
+        with open(self.index_path, "wb") as handle:
             pickle.dump(self.index, handle)
         with open(f"{CACHE_DIR}/docmap.pkl", "wb") as handle:
             pickle.dump(self.docmap, handle)
@@ -59,7 +60,7 @@ class InvertedIndex:
 
     def load(self):
         try:
-            with open(f"{CACHE_DIR}/index.pkl", "rb") as handle:
+            with open(self.index_path, "rb") as handle:
                 self.index = pickle.load(handle)
         except Exception as e:
             raise Exception(f"Failed to load index.pkl {e}")
