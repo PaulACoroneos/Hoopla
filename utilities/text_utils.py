@@ -64,10 +64,15 @@ def chunk_words(text, chunk_size, overlap):
 
 
 def chunk_sentences(text, max_chunk_size, overlap):
-    sentences = re.split(r"(?<=[.!?])\s+", text)
+    stripped_text = text.strip()
+    if not stripped_text:
+        return []
+    sentences = re.split(r"(?<=[.!?])\s+", stripped_text)
+    if len(sentences) == 1:
+        return sentences
     chunks = []
     for i in range(0, len(sentences), max_chunk_size - overlap):
-        sub_chunk = sentences[i : i + max_chunk_size]
+        sub_chunk = [s.strip() for s in sentences[i : i + max_chunk_size] if s.strip()]
         # does the next sub chunk of sentences actually contain anything that isnt just previous overlap?
         if len(sub_chunk) > overlap:
             chunks.append(" ".join(sub_chunk))
