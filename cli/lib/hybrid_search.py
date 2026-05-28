@@ -22,6 +22,10 @@ def hybrid_score(bm25_score, semantic_score, alpha):
     return alpha * bm25_score + (1 - alpha) * semantic_score
 
 
+def rrf_score(rank: int, k: int = 60) -> float:
+    return 1 / (k + rank)
+
+
 class HybridSearch:
     def __init__(self, documents: list[dict]) -> None:
         self.documents = documents
@@ -66,4 +70,42 @@ class HybridSearch:
         return sorted(results.values(), key=lambda x: x["hybrid"], reverse=True)[:limit]
 
     def rrf_search(self, query: str, k: int, limit: int = 10) -> list[dict]:
-        raise NotImplementedError("RRF hybrid search is not implemented yet.")
+        bm25_res = self._bm25_search(query, limit * 500)
+        semantic_res = self.semantic_search.search_chunks(query, limit * 500)
+
+        bm25_rankings = {doc_id: score for doc_id, score in bm25_res}
+        semantic_rankings = {
+            self.documents[res["id"]]["id"]: res["score"] for res in semantic_res
+        }
+
+        bm25_sorted_scores = sorted(
+            bm25_rankings.items(), key=lambda x: x[1], reverse=True
+        )
+        semantic_sorted_scores = sorted(
+            semantic_rankings.items(), key=lambda x: x[1], reverse=True
+        )
+
+        bm25_rrf_rankings = {}
+        semantic_rrf_rankings = {}
+
+        for rank, (doc_id, _) in enumerate(bm25_sorted_scores, 1):
+            bm25_rrf_rankings[doc_id] = {"score": rrf_score(rank, k), "rank": rank}
+
+        for rank, (doc_id, _) in enumerate(semantic_sorted_scores, 1):
+            semantic_rrf_rankings[doc_id] = {"score": rrf_score(rank, k), "rank": rank}
+
+        results = {}
+        for document in self.documents:
+            bm25 = bm25_rrf_rankings.get(document["id"], {"score": 0.0, "rank": 0})
+            semantic = semantic_rrf_rankings.get(
+                document["id"], {"score": 0.0, "rank": 0}
+            )
+
+            results[document["id"]] = {
+                "document": document,
+                "bm_25": bm25["rank"],
+                "semantic": semantic["rank"],
+                "hybrid": bm25["score"] + semantic["score"],
+            }
+
+        return sorted(results.values(), key=lambda x: x["hybrid"], reverse=True)[:limit]
