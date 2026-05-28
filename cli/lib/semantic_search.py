@@ -116,6 +116,7 @@ class SemanticSearch:
                     "score": scored_movie[0],
                     "title": scored_movie[1]["title"],
                     "description": scored_movie[1]["description"],
+                    "doc_id": scored_movie[1]["id"],
                 }
             )
 
