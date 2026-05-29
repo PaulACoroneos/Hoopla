@@ -7,6 +7,30 @@ from google import genai
 from cli.lib.hybrid_search import HybridSearch, normalize
 from utilities.text_utils import load_movies
 
+SPELL_FIX_PROMPT = """Fix any spelling errors in the user-provided movie search query below.
+Correct only clear, high-confidence typos. Do not rewrite, add, remove, or reorder words.
+Preserve punctuation and capitalization unless a change is required for a typo fix.
+If there are no spelling errors, or if you're unsure, output the original query unchanged.
+Output only the final query text, nothing else."""
+
+ENHANCE_PROMPT = """Rewrite the user-provided movie search query below to be more specific and searchable.
+
+Consider:
+- Common movie knowledge (famous actors, popular films)
+- Genre conventions (horror = scary, animation = cartoon)
+- Keep the rewritten query concise (under 10 words)
+- It should be a Google-style search query, specific enough to yield relevant results
+- Don't use boolean logic
+
+Examples:
+- "that bear movie where leo gets attacked" -> "The Revenant Leonardo DiCaprio bear attack"
+- "movie about bear in london with marmalade" -> "Paddington London marmalade"
+- "scary movie with bear from few years ago" -> "bear horror movie 2015-2020"
+
+If you cannot improve the query, output the original unchanged.
+Output only the rewritten query text, nothing else."
+"""
+
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
@@ -56,7 +80,7 @@ def main() -> None:
     rrf_search_parser.add_argument(
         "--enhance",
         type=str,
-        choices=["spell"],
+        choices=["spell", "rewrite"],
         help="Query enhancement method",
     )
 
@@ -87,19 +111,13 @@ def main() -> None:
             hybrid_search = HybridSearch(docs)
             query = args.query
 
-            if args.enhance == "spell":
+            if args.enhance:
                 res = client.models.generate_content(
                     model="gemma-4-31b-it",
-                    contents=f"""Fix any spelling errors in the user-provided movie search query below.
-                    Correct only clear, high-confidence typos. Do not rewrite, add, remove, or reorder words.
-                    Preserve punctuation and capitalization unless a change is required for a typo fix.
-                    If there are no spelling errors, or if you're unsure, output the original query unchanged.
-                    Output only the final query text, nothing else.
-                    User query: "{query}"
-                    """,
+                    contents=f"""{SPELL_FIX_PROMPT if args.enhance == "spell" else ENHANCE_PROMPT} User query: "{query}" """,
                 )
                 print(f"Enhanced query ({args.enhance}): '{query}' -> '{res.text}'\n")
-                query = res.text
+                query = res.text.strip() if res.text else query
 
             results = hybrid_search.rrf_search(query, args.k, args.limit)
 
