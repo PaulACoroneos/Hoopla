@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 
 from dotenv import load_dotenv
 from google import genai
@@ -97,6 +98,14 @@ def main() -> None:
         help="Query enhancement method",
     )
 
+    rrf_search_parser.add_argument(
+        "--rerank-method",
+        type=str,
+        choices=["individual"],
+        help="method for reranking results",
+        default=None,
+    )
+
     args = parser.parse_args()
 
     match args.command:
@@ -132,15 +141,57 @@ def main() -> None:
                 print(f"Enhanced query ({args.enhance}): '{query}' -> '{res.text}'\n")
                 query = res.text.strip() if res.text else query
 
-            results = hybrid_search.rrf_search(query, args.k, args.limit)
+            limit = args.limit * 5 if args.rerank_method == "individual" else args.limit
 
-            for idx, result in enumerate(results, 1):
-                print(f"{idx}. {result['document']['title']}")
-                print(f"RRF Score: {result['hybrid']:.3f}")
-                print(
-                    f"BM25 Rank: {result['bm_25']}, Semantic Rank: {result['semantic']}"
-                )
-                print(f"{result['document']['description'][:100]}...")
+            results = hybrid_search.rrf_search(query, args.k, limit)
+
+            if args.rerank_method == "individual":
+                reranked_results_scores = []
+                for doc in results:
+                    res = client.models.generate_content(
+                        model="gemma-4-31b-it",
+                        contents=f"""Rate how well this movie matches the search query.
+
+                        Query: "{query}"
+                        Movie: {doc["document"]["title"]} - {doc["document"]["description"]}
+
+                        Consider:
+                        - Direct relevance to query
+                        - User intent (what they're looking for)
+                        - Content appropriateness
+
+                        Rate 0-10 (10 = perfect match).
+                        Output ONLY the number in your response, no other text or explanation.
+
+                        Score:""",
+                    )
+                    reranked_results_scores.append(
+                        {"doc": doc, "score": float((res.text or "0").strip())}
+                    )
+                    time.sleep(3)
+                sorted_reranked_results = sorted(
+                    reranked_results_scores, key=lambda x: x["score"], reverse=True
+                )[: args.limit]
+
+                print(f"Re-ranking top {args.limit} results using individual method...")
+                print(f'Reciprocal Rank Fusion Results for "{query}" (k={args.k}):')
+                for idx, result in enumerate(sorted_reranked_results, 1):
+                    print(f"{idx}. {result['doc']['document']['title']}")
+                    print(f"Re-rank Score: {result['score']:.3f}/10")
+                    print(f"RRF Score: {result['doc']['hybrid']:.3f}")
+                    print(
+                        f"BM25 Rank: {result['doc']['bm_25']}, Semantic Rank: {result['doc']['semantic']}"
+                    )
+                    print(f"{result['doc']['document']['description'][:100]}...")
+
+            else:
+                for idx, result in enumerate(results, 1):
+                    print(f"{idx}. {result['document']['title']}")
+                    print(f"RRF Score: {result['hybrid']:.3f}")
+                    print(
+                        f"BM25 Rank: {result['bm_25']}, Semantic Rank: {result['semantic']}"
+                    )
+                    print(f"{result['document']['description'][:100]}...")
 
         case _:
             parser.print_help()
