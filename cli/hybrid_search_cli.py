@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import time
 
@@ -101,7 +102,7 @@ def main() -> None:
     rrf_search_parser.add_argument(
         "--rerank-method",
         type=str,
-        choices=["individual"],
+        choices=["individual", "batch"],
         help="method for reranking results",
         default=None,
     )
@@ -141,12 +142,12 @@ def main() -> None:
                 print(f"Enhanced query ({args.enhance}): '{query}' -> '{res.text}'\n")
                 query = res.text.strip() if res.text else query
 
-            limit = args.limit * 5 if args.rerank_method == "individual" else args.limit
+            limit = args.limit * 5 if args.rerank_method else args.limit
 
             results = hybrid_search.rrf_search(query, args.k, limit)
 
+            reranked_results_scores = []
             if args.rerank_method == "individual":
-                reranked_results_scores = []
                 for doc in results:
                     res = client.models.generate_content(
                         model="gemma-4-31b-it",
@@ -169,6 +170,7 @@ def main() -> None:
                         {"doc": doc, "score": float((res.text or "0").strip())}
                     )
                     time.sleep(3)
+
                 sorted_reranked_results = sorted(
                     reranked_results_scores, key=lambda x: x["score"], reverse=True
                 )[: args.limit]
@@ -178,6 +180,47 @@ def main() -> None:
                 for idx, result in enumerate(sorted_reranked_results, 1):
                     print(f"{idx}. {result['doc']['document']['title']}")
                     print(f"Re-rank Score: {result['score']:.3f}/10")
+                    print(f"RRF Score: {result['doc']['hybrid']:.3f}")
+                    print(
+                        f"BM25 Rank: {result['doc']['bm_25']}, Semantic Rank: {result['doc']['semantic']}"
+                    )
+                    print(f"{result['doc']['document']['description'][:100]}...")
+
+            elif args.rerank_method == "batch":
+                doc_list_str = json.dumps([doc["document"] for doc in results])
+
+                res = client.models.generate_content(
+                    model="gemma-4-31b-it",
+                    contents=f"""Rank the movies listed below by relevance to the following search query.
+
+                    Query: "{query}"
+
+                    Movies:
+                    {doc_list_str}
+
+                    Return the movie IDs in order of relevance, best match first.
+
+                    Your response must be a raw JSON array of integers.
+                    Do not wrap the JSON in Markdown. Do not use a ```json code block.
+                    Do not include any explanatory text.
+
+                    For example:
+                    [75, 12, 34, 2, 1]
+
+                    Ranking:""",
+                )
+                scores = json.loads(res.text or "")
+                doc_by_id = {doc["document"]["id"]: doc for doc in results}
+                for idx, movie_id in enumerate(scores, 1):
+                    reranked_results_scores.append(
+                        {"doc": doc_by_id[movie_id], "score": idx}
+                    )
+
+                print(f"Re-ranking top {args.limit} results using batch method...")
+                print(f'Reciprocal Rank Fusion Results for "{query}" (k={args.k}):')
+                for idx, result in enumerate(reranked_results_scores[: args.limit], 1):
+                    print(f"{idx}. {result['doc']['document']['title']}")
+                    print(f"Re-rank Rank: {result['score']}")
                     print(f"RRF Score: {result['doc']['hybrid']:.3f}")
                     print(
                         f"BM25 Rank: {result['doc']['bm_25']}, Semantic Rank: {result['doc']['semantic']}"
