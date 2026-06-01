@@ -5,6 +5,7 @@ import time
 
 from dotenv import load_dotenv
 from google import genai
+from sentence_transformers import CrossEncoder
 
 from cli.lib.hybrid_search import HybridSearch, normalize
 from utilities.text_utils import load_movies
@@ -102,7 +103,7 @@ def main() -> None:
     rrf_search_parser.add_argument(
         "--rerank-method",
         type=str,
-        choices=["individual", "batch"],
+        choices=["individual", "batch", "cross_encoder"],
         help="method for reranking results",
         default=None,
     )
@@ -227,6 +228,30 @@ def main() -> None:
                     )
                     print(f"{result['doc']['document']['description'][:100]}...")
 
+            elif args.rerank_method == "cross_encoder":
+                cross_encoder = CrossEncoder("cross-encoder/ms-marco-TinyBERT-L2-v2")
+                pairs = []
+                for result in results:
+                    pairs.append(
+                        [
+                            query,
+                            f"{result['document'].get('title', '')} - {result['document'].get('description', '')}",
+                        ]
+                    )
+                scores = cross_encoder.predict(pairs)
+                print(scores)
+                sorted_results = sorted(
+                    zip(scores, results), key=lambda x: x[0], reverse=True
+                )
+
+                for idx, (score, result) in enumerate(sorted_results[: args.limit], 1):
+                    print(f"{idx}. {result['document']['title']}")
+                    print(f"Cross Encoder Score: {score:.3f}")
+                    print(f"RRF Score: {result['hybrid']:.3f}")
+                    print(
+                        f"BM25 Rank: {result['bm_25']}, Semantic Rank: {result['semantic']}"
+                    )
+                    print(f"{result['document']['description'][:100]}...")
             else:
                 for idx, result in enumerate(results, 1):
                     print(f"{idx}. {result['document']['title']}")
